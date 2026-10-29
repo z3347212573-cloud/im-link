@@ -1,0 +1,12 @@
+node_modules/
+release/
+.artifacts/
+.test-data/
+*.log
+.env
+.env.*
+!.env.example
+winwork-diagnostics*/
+*.7z
+*.zip
+.im-link/

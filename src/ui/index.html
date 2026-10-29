@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>接线台 · IM Link</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark"><span></span><span></span><span></span></div><div><strong>接线台</strong><small>IM LINK</small></div></div>
+    <div class="workspace-label">本机工作区</div>
+    <nav aria-label="主导航">
+      <button data-view="channels" class="nav active"><span class="nav-glyph">⇄</span>渠道<span id="channel-count" class="count">0</span></button>
+      <button data-view="agents" class="nav"><span class="nav-glyph">◇</span>Agent</button>
+      <button data-view="events" class="nav"><span class="nav-glyph">◷</span>操作记录</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="local-badge"><span class="tiny-dot"></span>本机配置</div><p>配置完成后，可退出接线台。</p><button class="quiet data-link" data-action="openData">打开数据文件夹 ↗</button><small>v0.1.0 · 开发版</small></div>
+  </aside>
+  <div class="app">
+    <header class="topbar"><div><span class="crumb">工作区</span><span class="slash">/</span><span id="breadcrumb">渠道</span></div><div class="topbar-right"><span id="platform" class="platform">本机</span><button class="icon-button" data-action="scan" aria-label="扫描现有配置" title="扫描现有配置">↻</button></div></header>
+    <main id="main" tabindex="-1"></main>
+    <footer><span><span class="tiny-dot"></span>配置保存在本机</span><span>管理工具退出后，由 Agent 及其扩展处理消息</span></footer>
+  </div>
+  <dialog id="wizard" aria-labelledby="wizard-title">
+    <form id="channel-form">
+      <div class="modal-heading"><div><span class="eyebrow">连接一个机器人</span><h2 id="wizard-title">添加飞书渠道</h2></div><button type="button" class="icon-button" data-action="closeWizard" aria-label="关闭">×</button></div>
+      <div class="steps"><span data-step="0" class="current">1 创建应用</span><i></i><span data-step="1">2 接入信息</span><i></i><span data-step="2">3 绑定 Agent</span></div>
+      <section class="wizard-page" data-page="0">
+        <div class="guide-title"><div class="app-icon feishu">飞</div><div><h3>使用飞书自建应用机器人</h3><p>已有机器人？直接进入下一步填写参数。</p></div></div>
+        <ol class="guide-list"><li><strong>创建企业自建应用</strong><p>在飞书开放平台创建应用，在“应用能力”中添加机器人。</p></li><li><strong>开启消息权限</strong><p>授予接收单聊消息和发送消息的权限，订阅“接收消息”事件。</p></li><li><strong>选择长连接接收事件</strong><p>无需公网回调地址。按飞书提示发布应用，确保你可以私聊机器人。</p></li><li><strong>取得接入信息</strong><p>在“凭证与基础信息”中复制 App ID 和 App Secret。</p></li></ol>
+        <button type="button" class="text-button" data-action="docs">打开飞书官方创建指引 ↗</button>
+      </section>
+      <section class="wizard-page" data-page="1" hidden>
+        <label>渠道名称<input name="name" maxlength="80" placeholder="例如：我的飞书助手" autocomplete="off"></label>
+        <label>App ID<input name="appId" placeholder="cli_…" autocomplete="off" spellcheck="false"><small>来自飞书应用的“凭证与基础信息”。</small></label>
+        <label>App Secret<div class="secret-field"><input name="appSecret" type="password" placeholder="输入应用密钥" autocomplete="new-password"><button type="button" class="quiet" data-action="toggleSecret">显示</button></div><small>在本机加密保存，切换 Agent 时直接复用。</small></label>
+      </section>
+      <section class="wizard-page" data-page="2" hidden>
+        <label>绑定到<select name="profileId" id="profile-select"><option value="">暂不绑定，先保存渠道</option></select><small>默认只显示 Agent 名称，有多套设置时显示设置名称。</small></label>
+        <label>默认工作文件夹<span class="optional">可选</span><div class="folder-field"><input name="cwd" placeholder="未指定时使用 Agent 的工作目录" autocomplete="off"><button type="button" class="button subtle" data-action="chooseChannelFolder">选择</button></div></label>
+        <div class="callout"><span>ⓘ</span><p>保存绑定后会安装 Agent 侧接入配置。涉及主进程时，请按提示手动重开 Agent；保存配置后仍需实测消息和回复。</p></div>
+      </section>
+      <p id="wizard-error" class="form-error" role="alert"></p>
+      <div class="modal-footer"><button type="button" class="button subtle" id="wizard-prev">取消</button><span id="step-hint">已有应用可以直接下一步</span><button type="button" class="button primary" id="wizard-next">下一步 →</button></div>
+    </form>
+  </dialog>
+  <dialog id="action-dialog" aria-labelledby="action-title"><form id="action-form"><div class="modal-heading"><h2 id="action-title">操作</h2><button type="button" class="icon-button" data-action="closeAction" aria-label="关闭">×</button></div><div id="action-content"></div><p id="action-error" class="form-error" role="alert"></p><div class="modal-footer"><button type="button" class="button subtle" data-action="closeAction">取消</button><button class="button primary" id="action-submit" type="submit">确定</button></div></form></dialog>
+  <div id="toast" role="status" class="toast" hidden></div>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
