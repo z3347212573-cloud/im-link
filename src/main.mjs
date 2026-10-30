@@ -43,7 +43,7 @@ else {
   });
   const create = async () => {
     window = new BrowserWindow({
-      width: 1280, height: 850, minWidth: 940, minHeight: 650,
+      width: 1120, height: 760, minWidth: 880, minHeight: 620,
       title: '接线台 · IM Link', backgroundColor: '#eef2f6',
       show: !process.env.IM_LINK_SMOKE,
       webPreferences: { preload: path.join(appRoot, 'src/preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false },

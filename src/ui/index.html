@@ -12,14 +12,14 @@
     <div class="brand"><div class="brand-mark"><span></span><span></span><span></span></div><div><strong>接线台</strong><small>IM LINK</small></div></div>
     <div class="workspace-label">本机工作区</div>
     <nav aria-label="主导航">
-      <button data-view="channels" class="nav active"><span class="nav-glyph">⇄</span>渠道<span id="channel-count" class="count">0</span></button>
-      <button data-view="agents" class="nav"><span class="nav-glyph">◇</span>Agent</button>
-      <button data-view="events" class="nav"><span class="nav-glyph">◷</span>操作记录</button>
+      <button data-view="channels" class="nav active" aria-label="渠道"><span class="nav-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/></svg></span><span class="nav-label">渠道</span><span id="channel-count" class="count">0</span></button>
+      <button data-view="agents" class="nav" aria-label="Agent"><span class="nav-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="6" width="14" height="14" rx="4"/><path d="M12 3v3M9 12h.01M15 12h.01M9 16h6M2 11v4m20-4v4"/></svg></span><span class="nav-label">Agent</span></button>
+      <button data-view="events" class="nav" aria-label="操作记录"><span class="nav-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg></span><span class="nav-label">操作记录</span></button>
     </nav>
-    <div class="sidebar-bottom"><div class="local-badge"><span class="tiny-dot"></span>本机配置</div><p>配置完成后，可退出接线台。</p><button class="quiet data-link" data-action="openData">打开数据文件夹 ↗</button><small>v0.1.0 · 开发版</small></div>
+    <div class="sidebar-bottom"><div class="local-card"><div class="local-badge"><span class="tiny-dot"></span>本机配置</div><p>配置完成后<br>即可退出接线台</p></div><button class="quiet data-link" data-action="openData">打开数据文件夹 ↗</button><small>v0.1.0 · 开发版</small></div>
   </aside>
   <div class="app">
-    <header class="topbar"><div><span class="crumb">工作区</span><span class="slash">/</span><span id="breadcrumb">渠道</span></div><div class="topbar-right"><span id="platform" class="platform">本机</span><button class="icon-button" data-action="scan" aria-label="扫描现有配置" title="扫描现有配置">↻</button></div></header>
+    <header class="topbar"><div><span class="crumb">工作区</span><span class="slash">/</span><span id="breadcrumb">渠道</span></div><div class="topbar-right"><span id="platform" class="platform">本机</span><button class="icon-button" data-action="scan" aria-label="扫描现有配置" title="扫描现有配置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></svg></button></div></header>
     <main id="main" tabindex="-1"></main>
     <footer><span><span class="tiny-dot"></span>配置保存在本机</span><span>管理工具退出后，由 Agent 及其扩展处理消息</span></footer>
   </div>
