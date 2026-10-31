@@ -45,6 +45,10 @@ Windows 上如果企业网络阻止 Electron 的完整文件下载，可以运�
 
 原生钩子探针目前针对 Windows；macOS 应在对应主机验证和打包，不能用 Windows 的运行结果代替。桌面测试使用 .test-data 下的隔离配置，原生会话集成测试使用临时目录和本地模拟模型。
 
+已安装 DSH 时，可额外验证插件在当前 Cordis 中的启动和卸载（不会读取机器人凭据、连接飞书或修改该 profile）：
+
+    IM_LINK_DSH_PROFILE="$HOME/.dsh/profiles/web" node --test tests/dsh-integration.test.mjs
+
 ## 日常使用
 
 - 配置完成后，照常打开 Agent。DSH 使用 Cordis 补丁层；Claude Code 使用用户级 SessionStart／SessionEnd 钩子，不要求专用快捷方式或给日常命令加 channels 参数。

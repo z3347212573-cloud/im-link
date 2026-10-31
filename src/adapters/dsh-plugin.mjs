@@ -79,9 +79,11 @@ export class DshDriver {
 }
 
 export function apply(ctx, config) {
-  let host;
-  let disposed = false;
-  ctx.on('ready', () => {
+  // Cordis mounts this plugin after its injected services are available.
+  // Its fiber owns both startup and cleanup; no global ready/dispose events fire.
+  ctx.effect(() => {
+    let host;
+    let disposed = false;
     void (async () => {
     try {
       const require = createRequire(path.join(config.profileRoot, 'package.json'));
@@ -94,6 +96,6 @@ export function apply(ctx, config) {
       await host.start();
     } catch { ctx.logger?.warn('IM Link 渠道组件启动失败，请在管理工具中检查配置。'); }
     })();
-  });
-  ctx.on('dispose', async () => { disposed = true; await host?.close(); });
+    return async () => { disposed = true; await host?.close(); };
+  }, 'IM Link Agent host');
 }
