@@ -2,6 +2,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { AgentHost } from '../runtime/host.mjs';
+import { readImage, IMAGE_REPLY_GUIDE, MediaError } from '../core/media.mjs';
 
 export const name = 'im-link-agent';
 export const inject = ['agents', 'agentDefaultModel'];
@@ -11,8 +12,29 @@ export class DshDriver {
     Object.assign(this, { ctx, profile, cwd, api });
     this.handles = new Map();
     this.askers = new Map();
+    this.modelSelections = new Map();
   }
-  async run({ text, session, onSession, ask }) {
+  async run({ text, images = [], session, onSession, ask }) {
+    const content = [{ type: 'text', text: IMAGE_REPLY_GUIDE + '\n\n用户消息：\n' + (text || '请查看并描述这些图片。') }];
+    if (images.length) {
+      const selection = this.modelSelections.get(session.id) || this.ctx.get('agentDefaultModel')?.currentSelection();
+      const llm = this.ctx.get('llm');
+      if (selection && llm?.resolveModelInfo) {
+        const model = await llm.resolveModelInfo(selection.provider, selection.model);
+        if (model.inputModalities && !model.inputModalities.includes('image')) throw new MediaError('当前 DSH 模型不支持看图，请选择支持图片输入的模型后重新发送。');
+      }
+      const attachments = this.ctx.get('attachments');
+      if (!attachments?.saveImages) throw new MediaError('当前 DSH 没有可用的图片附件服务，请检查附件插件是否已安装并启用。');
+      const inputs = [];
+      for (const image of images) {
+        const { data, mimeType } = await readImage(image.path);
+        inputs.push({ data, mediaType: mimeType, name: path.basename(image.path) });
+      }
+      let refs;
+      try { refs = await attachments.saveImages(inputs); }
+      catch { throw new MediaError('DSH 未能接收图片，请检查图片是否有效、尺寸是否过大后重新发送。'); }
+      content.push(...refs.map((attachment) => ({ type: 'image', attachment })));
+    }
     this.askers.set(session.id, ask);
     let handle = this.handles.get(session.id);
     if (!handle) {
@@ -51,6 +73,7 @@ export class DshDriver {
         ? await this.ctx.agents.create({ sessionId: session.id, meta: { cwd: this.cwd || process.cwd(), agentPreset: 'standard' }, agentOptions, setup })
         : await this.ctx.agents.resume({ resumeSessionId: session.id, agentOptions, setup });
       this.handles.set(session.id, handle);
+      this.modelSelections.set(session.id, selection);
       const registry = this.ctx.get('workspaceRegistry');
       const cwd = handle.agent.session.header?.cwd;
       if (registry && cwd) {
@@ -61,19 +84,29 @@ export class DshDriver {
     const agent = handle.agent;
     await onSession(agent.id);
     const before = agent.session.seq;
-    agent.followup(this.api.createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }));
+    agent.followup(this.api.createUserMessage({ content, source: { kind: 'user' } }));
     await agent.whenIdle();
     const events = agent.session.snapshotEvents(before);
     for (const event of [...events].reverse()) {
       if (event.type !== 'assistant/message') continue;
       const result = event.data?.message?.content?.filter((block) => block.type === 'text').map((block) => block.text).join('\n');
+      const pictures = event.data?.message?.content?.filter((block) => block.type === 'image') || [];
+      if (pictures.length) {
+        const attachments = this.ctx.get('attachments');
+        const images = [];
+        for (const picture of pictures) {
+          const { data } = await attachments.readImage(picture.attachment);
+          images.push({ data });
+        }
+        return { text: result || '', images };
+      }
       if (result) return result;
     }
-    throw new Error('Agent 没有产生可发送的文字回复。');
+    throw new Error('Agent 没有产生可发送的回复。');
   }
   async releaseSession(id) {
     const handle = this.handles.get(id);
-    if (handle) { await handle.dispose(); this.handles.delete(id); this.askers.delete(id); }
+    if (handle) { await handle.dispose(); this.handles.delete(id); this.askers.delete(id); this.modelSelections.delete(id); }
   }
   async close() { for (const id of [...this.handles.keys()]) await this.releaseSession(id); }
 }

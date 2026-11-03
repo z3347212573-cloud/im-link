@@ -136,7 +136,7 @@ test('failed binding restores configuration and does not invent a binding', asyn
   assert.equal((await manager.snapshot()).channels[0].binding, null);
   assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).other, 'preserve');
 });
-test('Feishu ingress accepts only well-formed private text messages', () => {
+test('Feishu ingress rejects groups and malformed messages', () => {
   const base = { message: { chat_type: 'p2p', message_type: 'text', chat_id: 'chat', message_id: 'msg', content: '{"text":"hello"}' } };
   assert.deepEqual(parseFeishuEvent(base), { id: 'msg', chatId: 'chat', chatType: 'p2p', text: 'hello' });
   assert.equal(parseFeishuEvent({ message: { ...base.message, chat_type: 'group' } }), null);

@@ -109,3 +109,24 @@ test('binding change can stop new task admission without interrupting an active 
   gate.resolve(); await f.engine.idle();
   assert.equal(f.calls.length, 1); assert.equal((await f.store.read()).chats.one.queue[0].text, 'B');
 });
+
+test('images queued after /new enter the new session, never interrupting the running task', async (t) => {
+  const gate = deferred();
+  const f = await fixture(t, async ({ text, images }) => { if (text === 'A') await gate.promise; return images.length ? 'looked at image' : 'finished A'; });
+  await f.engine.ingest({ id: 'a', chatId: 'one', text: 'A' }); await waitFor(() => f.calls.length === 1);
+  await f.engine.ingest({ id: 'new', chatId: 'one', text: '/new' });
+  await f.engine.ingest({ id: 'image', chatId: 'one', images: [{ imageKey: 'picture' }] });
+  gate.resolve(); await f.engine.idle();
+  assert.deepEqual(f.sent.slice(1).map((item) => item.text), ['finished A', '已新建会话。', 'looked at image']);
+  assert.notEqual(f.calls[0].session.id, f.calls[1].session.id);
+  assert.equal(f.calls[1].session.fresh, true); assert.equal(f.calls[1].images[0].imageKey, 'picture');
+});
+
+test('a picture while answering a permission question is queued as a task, never treated as approval', async (t) => {
+  const f = await fixture(t, async ({ text, ask, images }) => images.length ? 'image-task' : 'answer ' + await ask('Allow?'));
+  await f.engine.ingest({ id: 'question', chatId: 'one', text: 'ask' }); await waitFor(() => f.engine.questions.has('one'));
+  await f.engine.ingest({ id: 'picture', chatId: 'one', text: '允许', images: [{ imageKey: 'key' }] });
+  assert(f.engine.questions.has('one')); assert.equal(f.calls.length, 1);
+  await f.engine.ingest({ id: 'answer', chatId: 'one', text: '拒绝' }); await f.engine.idle();
+  assert.deepEqual(f.sent.map((item) => item.text), ['Allow?', 'answer 拒绝', 'image-task']);
+});

@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { clone, hash } from './files.mjs';
+import { MediaError } from './media.mjs';
 
 // The queue belongs to the Agent-side adapter, never to the manager window.
 export class Conversations {
-  constructor({ store, driver, send, revision, canStart = async () => true, activity = () => {}, failure = () => {} }) {
-    Object.assign(this, { store, driver, send, revision, canStart, activity, failure });
+  constructor({ store, driver, send, revision, canStart = async () => true, activity = () => {}, failure = () => {}, prepareInput = async (job) => ({ text: job.text, images: job.images || [] }), prepareResult = async (result) => result, cleanup = async () => {} }) {
+    Object.assign(this, { store, driver, send, revision, canStart, activity, failure, prepareInput, prepareResult, cleanup });
     this.workers = new Map();
     this.questions = new Map();
     this.incoming = new Map();
@@ -35,13 +36,14 @@ export class Conversations {
     current.finally(() => { if (this.incoming.get(event.chatId) === current) this.incoming.delete(event.chatId); }).catch(() => {});
     return current;
   }
-  async receive({ id, chatId, text, chatType = 'p2p' }) {
-    if (this.stopped || chatType !== 'p2p' || !text.trim()) return false;
+  async receive({ id, chatId, text = '', images = [], chatType = 'p2p' }) {
+    if (this.stopped || chatType !== 'p2p' || (!text.trim() && !images.length)) return false;
     const pending = this.questions.get(chatId);
     const before = await this.store.read();
     const newQueued = before.chats?.[chatId]?.queue.some((job) => job.kind === 'new');
     const explicitReply = /^\/reply\s+([\s\S]+)$/.exec(text.trim());
-    const isAnswer = pending && text.trim() !== '/new' && (!newQueued || explicitReply);
+    const isAnswer = pending && !images.length && text.trim() !== '/new' && (!newQueued || explicitReply);
+    const isNew = !images.length && text.trim() === '/new';
     let busy = false;
     const accepted = await this.store.update((state) => {
       state.seen ||= [];
@@ -52,7 +54,7 @@ export class Conversations {
         state.chats ||= {};
         const chat = state.chats[chatId] ||= { queue: [], session: null, revision: this.revision };
         busy = chat.queue.some((job) => ['running', 'reply_pending'].includes(job.status));
-        chat.queue.push({ id, text, kind: text.trim() === '/new' ? 'new' : 'message', status: 'queued' });
+        chat.queue.push({ id, text, ...(images.length ? { images } : {}), kind: isNew ? 'new' : 'message', status: 'queued' });
       }
       return true;
     });
@@ -62,7 +64,7 @@ export class Conversations {
       pending.resolve(explicitReply ? explicitReply[1] : text);
       return true;
     }
-    if (busy && text.trim() === '/new') {
+    if (busy && isNew) {
       await this.send(chatId, '将在当前任务完成后新建会话。' +
         (pending ? '\n当前任务还在等待回答，请用 /reply 你的答案 回答；其他消息会留给新会话。' : ''), 'waiting:' + id);
     }
@@ -104,20 +106,21 @@ export class Conversations {
             job.ok = false;
           } else {
             const session = chat.session || { id: randomUUID(), fresh: true };
+            const input = await this.prepareInput(job);
             const result = await this.driver.run({
-              text: job.text, session: clone(session),
+              ...input, session: clone(session),
               onSession: async (id) => {
                 await this.store.update((value) => { value.chats[chatId].session = { id, fresh: false }; });
               },
               ask: (question, signal) => this.ask(chatId, question, signal),
             });
-            job.result = result || '任务已完成。';
+            job.result = await this.prepareResult(result, job.id) || '任务已完成。';
             job.ok = true;
           }
-        } catch {
-          job.result = '任务未完成。请检查 Agent 的登录、模型配置或权限后重新发送请求；本次未自动重试。';
+        } catch (error) {
+          job.result = error instanceof MediaError ? error.userMessage : '任务未完成。请检查 Agent 的登录、模型配置或权限后重新发送请求；本次未自动重试。';
           job.ok = false;
-          this.failure();
+          if (!(error instanceof MediaError)) this.failure();
         }
         await this.store.update((value) => {
           const current = value.chats[chatId].queue[0];
@@ -131,6 +134,7 @@ export class Conversations {
       await this.store.update((value) => {
         if (value.chats[chatId].queue[0]?.id === job.id) value.chats[chatId].queue.shift();
       });
+      await this.cleanup(job.id).catch(() => {});
     }
   }
   async ask(chatId, question, signal) {

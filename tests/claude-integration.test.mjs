@@ -77,6 +77,17 @@ test('native Claude SDK creates and resumes exact sessions against a local fixtu
   assert.equal(second, 'fixture-response-2');
   assert(JSON.stringify(requests[1].messages).includes('first-fixture-turn'));
   assert(JSON.stringify(requests[1].messages).includes('second-fixture-turn'));
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGPQyXjxHwAEvAJ8LgkgXQAAAABJRU5ErkJggg==';
+  const imageFile = path.join(root, 'image.png'); await fs.writeFile(imageFile, Buffer.from(png, 'base64'));
+  await driver.run({ text: 'image-fixture-turn', images: [{ path: imageFile }], session: { id, fresh: false }, onSession: async (value) => { assert.equal(value, id); }, ask: async () => { throw new Error('unexpected question'); } });
+  const imageTurn = requests.at(-1).messages.findLast((message) => message.role === 'user' && Array.isArray(message.content) && message.content.some((block) => block.type === 'image'));
+  assert(imageTurn, 'Native CLI did not send image content to the model');
+  assert(imageTurn.content.some((block) => block.type === 'text' && block.text.includes('image-fixture-turn')));
+  assert.equal(imageTurn.content.find((block) => block.type === 'image').source.media_type, 'image/png');
+  assert.equal(imageTurn.content.find((block) => block.type === 'image').source.data, png);
+  const imageOnlyId = randomUUID();
+  await driver.run({ text: '', images: [{ path: imageFile }], session: { id: imageOnlyId, fresh: true }, onSession: async (value) => { assert.equal(value, imageOnlyId); }, ask: async () => { throw new Error('unexpected question'); } });
+  assert(requests.at(-1).messages.some((message) => message.role === 'user' && Array.isArray(message.content) && message.content.some((block) => block.type === 'image')));
   let asked = false;
   await driver.run({ text: 'ask-fixture', session: { id: randomUUID(), fresh: true }, onSession: async () => {}, ask: async (question) => {
     assert(question.includes('Choose a color')); asked = true; return 'Blue';
