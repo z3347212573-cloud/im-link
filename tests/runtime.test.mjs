@@ -74,3 +74,42 @@ test('two Agent hosts cannot simultaneously acquire the same channel', async (t)
   assert.equal(receivers, 1);
   await a.close(); await b.tick(); assert.equal(receivers, 1);
 });
+
+test('AgentHost routes private image input and Markdown image output back to the same chat', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'im-link-image-host-'));
+  const cwd = path.join(root, 'workspace'); await fs.mkdir(cwd);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGPQyXjxHwAEvAJ8LgkgXQAAAABJRU5ErkJggg==', 'base64');
+  const store = stateStore(root), vault = new Vault(root, async () => Buffer.alloc(32, 5));
+  await vault.put('channel', { appId: 'fixture', appSecret: 'fixture' });
+  await store.update((state) => { state.profiles = [{ id: 'agent', agent: 'claude' }]; state.channels = [{ id: 'channel', binding: 'agent', revision: 1, cwd }]; });
+  let receiver, sent, attempts = 0, executions = 0;
+  const host = new AgentHost(root, 'agent', async () => ({
+    run: async ({ images, text, onSession, session }) => {
+      executions++;
+      assert.equal(text, '描述图片'); assert.deepEqual(await fs.readFile(images[0].path), png);
+      await onSession(session.id);
+      await fs.writeFile(path.join(cwd, 'result.png'), png);
+      return '回传图片\n![结果](result.png)';
+    },
+  }), { vault, transportFactory: () => ({
+    start: async (callback) => { receiver = callback; }, close: async () => {},
+    downloadImage: async (id, key) => { assert.equal(id, 'image-msg'); assert.equal(key, 'img-key'); return png; },
+    send: async (chat, payload, id) => {
+      assert.equal(chat, 'private'); assert.equal(id, 'result:image-msg'); assert.deepEqual(await fs.readFile(payload.images[0].path), png);
+      if (++attempts === 1) throw new Error('offline');
+      sent = payload;
+    },
+  }) });
+  t.after(async () => { await host.close(); await fs.rm(root, { recursive: true, force: true }); });
+  await host.start(); await receiver({ id: 'image-msg', chatId: 'private', text: '描述图片', images: [{ imageKey: 'img-key' }] });
+  await until(() => host.channels.get('channel').engine.busy === 0 && attempts === 1);
+  assert.equal(host.channels.get('channel').status, 'error');
+  assert.match(host.channels.get('channel').lastError, /无需重发任务/);
+  assert.equal((await store.read()).channels[0].verifiedAt, undefined);
+  await host.tick();
+  await until(() => host.channels.get('channel').engine.busy === 0 && sent);
+  assert.equal(executions, 1); assert.equal(host.channels.get('channel').status, 'listening');
+  assert((await store.read()).channels[0].verifiedAt);
+  assert.equal(await fs.stat(sent.images[0].path).catch(() => null), null);
+  assert(await fs.stat(path.join(cwd, 'result.png')), 'Agent originals must not be removed');
+});

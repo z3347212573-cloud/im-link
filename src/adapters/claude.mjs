@@ -1,12 +1,14 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { readImage, IMAGE_REPLY_GUIDE } from '../core/media.mjs';
 
 export class ClaudeDriver {
   constructor(profile, cwd) { this.profile = profile; this.cwd = cwd || process.cwd(); this.active = new Set(); }
-  async run({ text, session, onSession, ask }) {
+  async run({ text, images = [], session, onSession, ask }) {
     const env = { ...process.env, IM_LINK_CHILD: '1', CLAUDE_CONFIG_DIR: this.profile.root };
     delete env.CLAUDECODE;
     const options = {
       cwd: this.cwd, settingSources: ['user', 'project', 'local'], env,
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: IMAGE_REPLY_GUIDE },
       ...(session.fresh ? { sessionId: session.id } : { resume: session.id }),
       canUseTool: async (name, input, { signal }) => {
         if (name === 'AskUserQuestion') {
@@ -29,7 +31,17 @@ export class ClaudeDriver {
           : { behavior: 'deny', message: '用户通过 IM 拒绝了这次操作。' };
       },
     };
-    const stream = query({ prompt: text, options });
+    let prompt = text;
+    if (images.length) {
+      const content = [{ type: 'text', text: text || '请查看并描述这些图片。' }];
+      for (const image of images) {
+        const { data, mimeType } = await readImage(image.path);
+        content.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: data.toString('base64') } });
+      }
+      content.push({ type: 'text', text: '本轮图片的临时原图（只读，本轮回复投递后会清理；编辑结果请另存到工作目录）：\n' + images.map((image) => image.path).join('\n') });
+      prompt = (async function* () { yield { type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, session_id: session.id }; })();
+    }
+    const stream = query({ prompt, options });
     this.active.add(stream);
     let result = '';
     let failed = false;

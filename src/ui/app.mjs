@@ -68,7 +68,7 @@ function channelsView() {
     ' 项已有渠道配置</strong><p>查看后选择导入，原有设置会先备份。</p></div><button class="text-button" data-action="findings">查看发现结果 →</button></div>' : '';
   $('#main').innerHTML = '<div class="page-header"><div><h1>渠道<span class="heading-count">' + state.channels.length + '</span></h1><p>管理机器人，连接你常用的 Agent。</p></div><div class="header-actions">' + scanButton('扫描配置') + '<button class="button primary" data-action="add">' + icon('plus') + '添加渠道</button></div></div>' +
     discovery + (state.scanErrors?.length ? '<div class="error-banner">有 ' + state.scanErrors.length + ' 套配置未能读取。原文件已保留，可在 Agent 页面检查位置。</div>' : '') +
-    '<section class="channel-section"><div class="surface-header"><div class="surface-title"><h3>全部渠道</h3><span class="surface-meta">飞书 · 私聊</span></div>' +
+    '<section class="channel-section"><div class="surface-header"><div class="surface-title"><h3>全部渠道</h3><span class="surface-meta">私聊 · 文字与图片</span></div>' +
     (state.channels.length ? '<input class="search" id="search" value="' + escape(search) + '" placeholder="搜索渠道名称…" aria-label="搜索渠道名称">' : '') + '</div>' +
     (state.channels.length ? '<div id="channel-rows" class="channel-grid">' + channelRows(state.channels.filter((channel) => channel.name.toLowerCase().includes(search.toLowerCase()))) + '</div>' :
       '<div class="empty"><div class="empty-mark"><span>飞</span><span>◇</span></div><h3>接入你的第一个机器人</h3><p>填一次接入信息，选择一个 Agent。以后更换绑定，无需再从头配置。</p><button class="button primary" data-action="add">＋ 添加飞书渠道</button></div>') + '</section>' +
@@ -99,7 +99,7 @@ function detail(channel) {
     '<button class="button subtle" data-action="edit" data-id="' + channel.id + '">编辑设置</button><button class="button subtle" data-action="check" data-id="' + channel.id + '">校验接入信息</button>' +
     '<button class="button subtle" data-action="unbind" data-id="' + channel.id + '"' + (!channel.binding || channel.pending ? ' disabled' : '') + '>解绑</button>' +
     '<button class="button danger" data-action="remove" data-id="' + channel.id + '"' + (channel.binding || channel.pending ? ' disabled' : '') + '>删除渠道</button></div>' +
-    '<p class="detail-note">' + (channel.pending ? '正在等待现有任务结束。后续消息会排队，在切换完成后交给目标 Agent。' : channel.recoveryNote ? escape(channel.recoveryNote) : channel.runtime?.lastError ? escape(channel.runtime.lastError) : '配置保存或凭据有效，并不代表当前已经接通。请重开目标 Agent 后，在飞书私聊发送一条消息，完成请求与回复验证。') + '</p></section>';
+    '<p class="detail-note">' + (channel.pending ? '正在等待现有任务结束。后续消息会排队，在切换完成后交给目标 Agent。' : channel.recoveryNote ? escape(channel.recoveryNote) : channel.runtime?.lastError ? escape(channel.runtime.lastError) : '支持私聊文字与图片，每次最多 4 张、每张 5 MB。看图需使用支持图片输入的模型。配置完成后，请重开 Agent，并在飞书私聊验证请求与回复。') + '</p></section>';
 }
 function agentsView() {
   $('#main').innerHTML = '<div class="page-header"><div><h1>Agent<span class="heading-count">' + state.profiles.length + '</span></h1><p>管理本机设置，查看每套设置连接的渠道。</p></div><div class="header-actions">' + scanButton('重新扫描') + '<button class="button primary" data-action="addProfile">' + icon('plus') + '添加设置</button></div></div><div class="agent-groups">' +

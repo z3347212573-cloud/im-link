@@ -262,6 +262,8 @@ label small { display: block; color: #8798af; font-size: 10px; line-height: 1.8;
   .search { width: 145px; }
   .surface-title { gap: 6px; }
   .surface-meta { font-size: 9px; }
+  .channel-section > .surface-header { align-items: flex-start; flex-direction: column; gap: 9px; }
+  .channel-section .search { width: 100%; }
   dialog form { padding: 20px; }
   .modal-footer > span { display: none; }
 }

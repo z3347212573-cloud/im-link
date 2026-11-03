@@ -2,12 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { JsonStore, atomicWrite, readJson, alive } from '../core/files.mjs';
+import { JsonStore, atomicWrite, readJson, alive, hash } from '../core/files.mjs';
 import { stateStore, record } from '../core/model.mjs';
 import { Vault } from '../core/vault.mjs';
 import { Conversations, conversationFile } from '../core/conversations.mjs';
 import { Feishu } from '../adapters/feishu.mjs';
 import { restoreTransition, sessionSnapshot } from '../core/transitions.mjs';
+import { ImageStore } from '../core/media.mjs';
 
 export class AgentHost {
   constructor(root, profileId, driverFactory, options = {}) {
@@ -93,16 +94,28 @@ export class AgentHost {
       const transport = this.transportFactory(credentials);
       runtime.transport = transport;
       const driver = await this.driverFactory(profile, channel.cwd);
+      const media = new ImageStore(path.join(this.root, 'media', hash(channel.id)), channel.cwd);
       if (this.closed || runtime.closed) { await driver.close?.(); throw new Error('closed'); }
       const engine = new Conversations({
         store: new JsonStore(conversationFile(this.root, channel.id), { chats: {}, seen: [] }),
         driver, revision: channel.revision,
+        prepareInput: (job) => media.input(job, transport),
+        prepareResult: (result, id) => media.output(result, id),
+        cleanup: (id) => media.cleanup(id),
         canStart: async () => {
           const current = (await this.store.read()).channels.find((item) => item.id === channel.id);
           return runtime.ready === true && !(runtime.failed && current?.transition) && !!current && current.binding === this.profileId && !current.pending && current.revision === channel.revision;
         },
         send: async (chatId, text, messageId) => {
-          await transport.send(chatId, text, messageId);
+          try { await transport.send(chatId, text, messageId); }
+          catch (error) {
+            runtime.status = 'error';
+            runtime.lastError = '回复投递失败，正在重试。请检查网络、消息发送与图片资源权限；无需重发任务。';
+            await this.heartbeat(channel.id, runtime);
+            throw error;
+          }
+          runtime.status = 'listening';
+          runtime.lastError = null;
           if (messageId.startsWith('result:')) {
             await this.store.update((state) => {
               const item = state.channels.find((value) => value.id === channel.id);
